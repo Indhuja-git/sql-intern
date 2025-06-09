@@ -1,0 +1,135 @@
+-- 1. Create database
+CREATE DATABASE IF NOT EXISTS StudentDB;
+USE StudentDB;
+
+-- 2. Tables
+
+-- Departments
+CREATE TABLE Departments (
+    DeptID INT AUTO_INCREMENT PRIMARY KEY,
+    DeptName VARCHAR(100) NOT NULL UNIQUE
+);
+
+-- Students
+CREATE TABLE Students (
+    StudentID INT AUTO_INCREMENT PRIMARY KEY,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50),
+    Address VARCHAR(255),
+    Email VARCHAR(100) UNIQUE,
+    Phone VARCHAR(15),
+    DeptID INT,
+    EnrollmentDate DATE DEFAULT CURRENT_DATE,
+    FOREIGN KEY (DeptID) REFERENCES Departments(DeptID)
+);
+
+-- Courses
+CREATE TABLE Courses (
+    CourseID INT AUTO_INCREMENT PRIMARY KEY,
+    CourseName VARCHAR(100) NOT NULL,
+    DeptID INT,
+    Credits INT CHECK (Credits > 0),
+    FOREIGN KEY (DeptID) REFERENCES Departments(DeptID)
+);
+
+-- Enrollment (students in courses)
+CREATE TABLE Enrollments (
+    EnrollmentID INT AUTO_INCREMENT PRIMARY KEY,
+    StudentID INT,
+    CourseID INT,
+    EnrollDate DATE DEFAULT CURRENT_DATE,
+    FOREIGN KEY (StudentID) REFERENCES Students(StudentID),
+    FOREIGN KEY (CourseID) REFERENCES Courses(CourseID),
+    UNIQUE (StudentID, CourseID)
+);
+
+-- Attendance
+CREATE TABLE Attendance (
+    AttendanceID INT AUTO_INCREMENT PRIMARY KEY,
+    EnrollmentID INT,
+    AttDate DATE NOT NULL,
+    Status ENUM('Present','Absent','Late') NOT NULL,
+    FOREIGN KEY (EnrollmentID) REFERENCES Enrollments(EnrollmentID),
+    UNIQUE (EnrollmentID, AttDate)
+);
+
+-- Grades / Performance
+CREATE TABLE Grades (
+    GradeID INT AUTO_INCREMENT PRIMARY KEY,
+    EnrollmentID INT,
+    Grade CHAR(2),
+    GradeDate DATE DEFAULT CURRENT_DATE,
+    FOREIGN KEY (EnrollmentID) REFERENCES Enrollments(EnrollmentID),
+    CHECK (Grade IN ('A','B','C','D','E','F','P','I'))
+);
+
+-- 3. Sample Data
+INSERT INTO Departments (DeptName) VALUES ('Computer Science'), ('Mathematics'), ('Physics');
+
+INSERT INTO Students (FirstName, LastName, Address, Email, Phone, DeptID)
+VALUES 
+  ('Alice','Patel','123 Oak St','alice.patel@example.com','9876501234',1),
+  ('Bob','Kumar','456 Elm St','bob.kumar@example.com','9876512340',2);
+
+INSERT INTO Courses (CourseName, DeptID, Credits)
+VALUES 
+  ('Data Structures',1,4),
+  ('Calculus I',2,3);
+
+INSERT INTO Enrollments (StudentID, CourseID)
+VALUES (1,1),(1,2),(2,2);
+
+-- 4. Stored procedure: record attendance
+DELIMITER //
+CREATE PROCEDURE RecordAttendance(
+  IN p_EnrollID INT,
+  IN p_Date DATE,
+  IN p_Status ENUM('Present','Absent','Late')
+)
+BEGIN
+  INSERT INTO Attendance (EnrollmentID, AttDate, Status)
+  VALUES (p_EnrollID, p_Date, p_Status)
+  ON DUPLICATE KEY UPDATE Status = p_Status;
+END //
+DELIMITER ;
+
+-- 5. Stored procedure: record grade
+DELIMITER //
+CREATE PROCEDURE RecordGrade(
+  IN p_EnrollID INT,
+  IN p_Grade CHAR(2)
+)
+BEGIN
+  INSERT INTO Grades (EnrollmentID, Grade)
+  VALUES (p_EnrollID, p_Grade);
+END //
+DELIMITER ;
+
+-- 6. View: student report with attendance and grades
+CREATE OR REPLACE VIEW StudentReport AS
+SELECT 
+  s.StudentID, CONCAT(s.FirstName,' ',s.LastName) AS StudentName,
+  d.DeptName, c.CourseName, e.EnrollDate,
+  COALESCE((
+    SELECT COUNT(*) FROM Attendance a 
+    WHERE a.EnrollmentID = e.EnrollmentID AND a.Status = 'Present'
+  ),0) AS DaysPresent,
+  COALESCE((
+    SELECT COUNT(*) FROM Attendance a 
+    WHERE a.EnrollmentID = e.EnrollmentID
+  ),0) AS TotalSessions,
+  COALESCE((
+    SELECT g.Grade FROM Grades g 
+    WHERE g.EnrollmentID = e.EnrollmentID 
+    ORDER BY g.GradeDate DESC LIMIT 1
+  ), 'N/A') AS LatestGrade
+FROM Students s
+JOIN Departments d USING(DeptID)
+JOIN Enrollments e USING(StudentID)
+JOIN Courses c USING(CourseID);
+
+-- 7. Test sample attendance and grades
+CALL RecordAttendance(1, '2025-06-09', 'Present');
+CALL RecordAttendance(1, '2025-06-10', 'Absent');
+CALL RecordGrade(1, 'A');
+CALL RecordGrade(1, 'B');
