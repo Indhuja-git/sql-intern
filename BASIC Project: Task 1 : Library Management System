@@ -1,0 +1,116 @@
+-- Create the database
+CREATE DATABASE IF NOT EXISTS LibraryDB;
+USE LibraryDB;
+
+-- Create tables
+
+-- Categories (e.g., Fiction, Science, etc.)
+CREATE TABLE Categories (
+    CategoryID INT AUTO_INCREMENT PRIMARY KEY,
+    CategoryName VARCHAR(100) NOT NULL UNIQUE
+);
+
+-- Users (members of the library)
+CREATE TABLE Users (
+    UserID INT AUTO_INCREMENT PRIMARY KEY,
+    FullName VARCHAR(100) NOT NULL,
+    Email VARCHAR(100) UNIQUE,
+    Phone VARCHAR(15),
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Books
+CREATE TABLE Books (
+    BookID INT AUTO_INCREMENT PRIMARY KEY,
+    Title VARCHAR(200) NOT NULL,
+    Author VARCHAR(100),
+    Price DECIMAL(10, 2),
+    Status ENUM('Available', 'Issued') DEFAULT 'Available',
+    TotalCopies INT DEFAULT 1,
+    AvailableCopies INT DEFAULT 1,
+    CategoryID INT,
+    FOREIGN KEY (CategoryID) REFERENCES Categories(CategoryID)
+);
+
+-- Transactions (issue/return log)
+CREATE TABLE Transactions (
+    TransactionID INT AUTO_INCREMENT PRIMARY KEY,
+    UserID INT,
+    BookID INT,
+    IssueDate DATE,
+    ReturnDate DATE,
+    Returned BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (UserID) REFERENCES Users(UserID),
+    FOREIGN KEY (BookID) REFERENCES Books(BookID)
+);
+
+-- Stored procedure to issue a book
+DELIMITER //
+CREATE PROCEDURE IssueBook (
+    IN p_UserID INT,
+    IN p_BookID INT
+)
+BEGIN
+    DECLARE available INT;
+
+    SELECT AvailableCopies INTO available
+    FROM Books
+    WHERE BookID = p_BookID;
+
+    IF available > 0 THEN
+        INSERT INTO Transactions (UserID, BookID, IssueDate)
+        VALUES (p_UserID, p_BookID, CURDATE());
+
+        UPDATE Books
+        SET AvailableCopies = AvailableCopies - 1,
+            Status = IF(AvailableCopies - 1 = 0, 'Issued', 'Available')
+        WHERE BookID = p_BookID;
+    ELSE
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Book not available for issue.';
+    END IF;
+END //
+DELIMITER ;
+
+-- Stored procedure to return a book
+DELIMITER //
+CREATE PROCEDURE ReturnBook (
+    IN p_UserID INT,
+    IN p_BookID INT
+)
+BEGIN
+    DECLARE txnID INT;
+
+    -- Find the latest unreturned transaction
+    SELECT TransactionID INTO txnID
+    FROM Transactions
+    WHERE UserID = p_UserID AND BookID = p_BookID AND Returned = FALSE
+    ORDER BY IssueDate DESC
+    LIMIT 1;
+
+    IF txnID IS NOT NULL THEN
+        UPDATE Transactions
+        SET ReturnDate = CURDATE(), Returned = TRUE
+        WHERE TransactionID = txnID;
+
+        UPDATE Books
+        SET AvailableCopies = AvailableCopies + 1,
+            Status = 'Available'
+        WHERE BookID = p_BookID;
+    ELSE
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No matching transaction to return.';
+    END IF;
+END //
+DELIMITER ;
+
+-- Sample Data
+INSERT INTO Categories (CategoryName) VALUES ('Fiction'), ('Science'), ('Technology');
+
+INSERT INTO Users (FullName, Email, Phone) VALUES
+('Alice Johnson', 'alice@example.com', '9876543210'),
+('Bob Smith', 'bob@example.com', '9876501234');
+
+INSERT INTO Books (Title, Author, Price, TotalCopies, AvailableCopies, CategoryID)
+VALUES
+('The Time Machine', 'H.G. Wells', 299.99, 5, 5, 1),
+('A Brief History of Time', 'Stephen Hawking', 499.99, 3, 3, 2),
+('Clean Code', 'Robert C. Martin', 599.00, 4, 4, 3);
