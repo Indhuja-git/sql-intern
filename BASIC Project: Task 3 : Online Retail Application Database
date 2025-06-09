@@ -1,0 +1,141 @@
+-- 1. Create database
+CREATE DATABASE IF NOT EXISTS OnlineRetailDB;
+USE OnlineRetailDB;
+
+-- 2. User hierarchy
+CREATE TABLE User (
+    userId INT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    phoneNum VARCHAR(20)
+);
+
+CREATE TABLE Buyer (
+    userId INT PRIMARY KEY,
+    FOREIGN KEY (userId) REFERENCES User(userId)
+);
+
+CREATE TABLE Seller (
+    userId INT PRIMARY KEY,
+    FOREIGN KEY (userId) REFERENCES User(userId)
+);
+
+-- 3. Payment models
+CREATE TABLE BankCard (
+    cardNumber VARCHAR(20) PRIMARY KEY,
+    userId INT,
+    bank VARCHAR(100),
+    expiryDate DATE,
+    FOREIGN KEY (userId) REFERENCES User(userId)
+);
+
+CREATE TABLE CreditCard (
+    cardNumber VARCHAR(20) PRIMARY KEY,
+    organization VARCHAR(100),
+    FOREIGN KEY (cardNumber) REFERENCES BankCard(cardNumber)
+);
+
+CREATE TABLE DebitCard (
+    cardNumber VARCHAR(20) PRIMARY KEY,
+    FOREIGN KEY (cardNumber) REFERENCES BankCard(cardNumber)
+);
+
+-- 4. Store & Product
+CREATE TABLE Store (
+    sid INT PRIMARY KEY,
+    name VARCHAR(100),
+    startTime TIME,
+    customerGrade DECIMAL(3,2),
+    streetAddr VARCHAR(200),
+    city VARCHAR(100),
+    province VARCHAR(100)
+);
+
+CREATE TABLE Product (
+    pid INT PRIMARY KEY,
+    sid INT,
+    name VARCHAR(100),
+    brand VARCHAR(100),
+    type VARCHAR(100),
+    amount INT,
+    price DECIMAL(10,2),
+    colour VARCHAR(50),
+    customerReview TEXT,
+    modelNumber VARCHAR(100),
+    FOREIGN KEY (sid) REFERENCES Store(sid)
+);
+
+-- 5. Orders & Items
+CREATE TABLE OrderItem (
+    itemid INT PRIMARY KEY,
+    pid INT,
+    price DECIMAL(10,2),
+    creationTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pid) REFERENCES Product(pid)
+);
+
+CREATE TABLE `Order` (
+    orderNumber INT PRIMARY KEY,
+    creationTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    paymentStatus VARCHAR(50),
+    totalAmount DECIMAL(12,2)
+);
+
+-- 6. Address & Delivery
+CREATE TABLE Address (
+    addrid INT PRIMARY KEY,
+    userid INT,
+    name VARCHAR(100),
+    city VARCHAR(100),
+    postalCode VARCHAR(20),
+    streetAddr VARCHAR(200),
+    province VARCHAR(100),
+    contactPhoneNumber VARCHAR(20),
+    FOREIGN KEY (userid) REFERENCES User(userId)
+);
+
+-- 7. Relationships
+CREATE TABLE Manage (
+    userid INT,
+    sid INT,
+    SetUpTime DATE,
+    PRIMARY KEY (userid, sid),
+    FOREIGN KEY (userid) REFERENCES Seller(userId),
+    FOREIGN KEY (sid) REFERENCES Store(sid)
+);
+
+CREATE TABLE ShoppingCart (
+    userid INT,
+    pid INT,
+    quantity INT,
+    addtime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (userid, pid),
+    FOREIGN KEY (userid) REFERENCES Buyer(userId),
+    FOREIGN KEY (pid) REFERENCES Product(pid)
+);
+
+CREATE TABLE Contain (
+    orderNumber INT,
+    itemid INT,
+    quantity INT,
+    PRIMARY KEY (orderNumber, itemid),
+    FOREIGN KEY (orderNumber) REFERENCES `Order`(orderNumber),
+    FOREIGN KEY (itemid) REFERENCES OrderItem(itemid)
+);
+
+CREATE TABLE DeliverTo (
+    addrid INT,
+    orderNumber INT,
+    TimeDelivered TIMESTAMP,
+    PRIMARY KEY (addrid, orderNumber),
+    FOREIGN KEY (addrid) REFERENCES Address(addrid),
+    FOREIGN KEY (orderNumber) REFERENCES `Order`(orderNumber)
+);
+
+CREATE TABLE Payment (
+    cardNumber VARCHAR(20),
+    orderNumber INT,
+    payTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (cardNumber, orderNumber),
+    FOREIGN KEY (cardNumber) REFERENCES CreditCard(cardNumber),
+    FOREIGN KEY (orderNumber) REFERENCES `Order`(orderNumber)
+);
