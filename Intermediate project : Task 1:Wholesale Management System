@@ -1,0 +1,99 @@
+-- Create Products Table
+CREATE TABLE Products (
+    product_id INT PRIMARY KEY,
+    product_name VARCHAR(100),
+    price DECIMAL(10, 2),
+    stock_quantity INT
+);
+
+-- Create Suppliers Table
+CREATE TABLE Suppliers (
+    supplier_id INT PRIMARY KEY,
+    supplier_name VARCHAR(100),
+    contact_info VARCHAR(255)
+);
+
+-- Create Customers Table
+CREATE TABLE Customers (
+    customer_id INT PRIMARY KEY,
+    customer_name VARCHAR(100),
+    contact_info VARCHAR(255)
+);
+
+-- Create Orders Table
+CREATE TABLE Orders (
+    order_id INT PRIMARY KEY,
+    customer_id INT,
+    order_date DATE,
+    total_amount DECIMAL(10, 2),
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id)
+);
+
+-- Create OrderDetails Table
+CREATE TABLE OrderDetails (
+    order_detail_id INT PRIMARY KEY,
+    order_id INT,
+    product_id INT,
+    quantity INT,
+    unit_price DECIMAL(10, 2),
+    FOREIGN KEY (order_id) REFERENCES Orders(order_id),
+    FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+
+-- Create Inventory Transactions Table
+CREATE TABLE InventoryTransactions (
+    transaction_id INT PRIMARY KEY,
+    product_id INT,
+    transaction_type VARCHAR(50), -- 'IN' for stock received, 'OUT' for stock sold
+    quantity INT,
+    transaction_date DATE,
+    FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+-- Insert Sample Products
+INSERT INTO Products (product_id, product_name, price, stock_quantity)
+VALUES
+(1, 'Product A', 100.00, 500),
+(2, 'Product B', 150.00, 300);
+
+-- Insert Sample Customers
+INSERT INTO Customers (customer_id, customer_name, contact_info)
+VALUES
+(1, 'Customer X', 'contact@customerx.com'),
+(2, 'Customer Y', 'contact@customery.com');
+
+-- Insert Sample Orders
+INSERT INTO Orders (order_id, customer_id, order_date, total_amount)
+VALUES
+(1, 1, '2025-06-10', 500.00),
+(2, 2, '2025-06-11', 450.00);
+
+-- Insert Sample Order Details
+INSERT INTO OrderDetails (order_detail_id, order_id, product_id, quantity, unit_price)
+VALUES
+(1, 1, 1, 5, 100.00),
+(2, 2, 2, 3, 150.00);
+DELIMITER $$
+
+CREATE PROCEDURE AddNewOrder(
+    IN p_customer_id INT,
+    IN p_order_date DATE,
+    IN p_total_amount DECIMAL(10, 2)
+)
+BEGIN
+    INSERT INTO Orders (customer_id, order_date, total_amount)
+    VALUES (p_customer_id, p_order_date, p_total_amount);
+END $$
+
+DELIMITER ;
+DELIMITER $$
+
+CREATE TRIGGER UpdateInventoryAfterOrder
+AFTER INSERT ON OrderDetails
+FOR EACH ROW
+BEGIN
+    UPDATE Products
+    SET stock_quantity = stock_quantity - NEW.quantity
+    WHERE product_id = NEW.product_id;
+END $$
+
+DELIMITER ;
