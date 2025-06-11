@@ -1,0 +1,70 @@
+-- Create Products Table
+CREATE TABLE Products (
+    product_id INT PRIMARY KEY,
+    product_name VARCHAR(100),
+    price DECIMAL(10, 2),
+    stock_quantity INT
+);
+
+-- Create Customers Table
+CREATE TABLE Customers (
+    customer_id INT PRIMARY KEY,
+    customer_name VARCHAR(100),
+    contact_info VARCHAR(255)
+);
+
+-- Create Sales Table
+CREATE TABLE Sales (
+    sale_id INT PRIMARY KEY,
+    customer_id INT,
+    sale_date DATE,
+    total_amount DECIMAL(10, 2),
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id)
+);
+
+-- Create SaleDetails Table
+CREATE TABLE SaleDetails (
+    sale_detail_id INT PRIMARY KEY,
+    sale_id INT,
+    product_id INT,
+    quantity INT,
+    unit_price DECIMAL(10, 2),
+    FOREIGN KEY (sale_id) REFERENCES Sales(sale_id),
+    FOREIGN KEY (product_id) REFERENCES Products(product_id)
+);
+-- Insert Sample Products
+INSERT INTO Products (product_id, product_name, price, stock_quantity)
+VALUES
+(1, 'Product A', 100.00, 500),
+(2, 'Product B', 150.00, 300);
+
+-- Insert Sample Customers
+INSERT INTO Customers (customer_id, customer_name, contact_info)
+VALUES
+(1, 'Customer X', 'contact@customerx.com'),
+(2, 'Customer Y', 'contact@customery.com');
+DELIMITER $$
+
+CREATE PROCEDURE AddNewSale(
+    IN p_customer_id INT,
+    IN p_sale_date DATE,
+    IN p_total_amount DECIMAL(10, 2)
+)
+BEGIN
+    INSERT INTO Sales (customer_id, sale_date, total_amount)
+    VALUES (p_customer_id, p_sale_date, p_total_amount);
+END $$
+
+DELIMITER ;
+DELIMITER $$
+
+CREATE TRIGGER UpdateInventoryAfterSale
+AFTER INSERT ON SaleDetails
+FOR EACH ROW
+BEGIN
+    UPDATE Products
+    SET stock_quantity = stock_quantity - NEW.quantity
+    WHERE product_id = NEW.product_id;
+END $$
+
+DELIMITER ;
